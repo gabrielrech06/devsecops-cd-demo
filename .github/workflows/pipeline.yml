@@ -1,0 +1,88 @@
+name: CI/CD
+
+on:
+  pull_request:
+    branches:
+      - main
+
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate site
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Validate application
+        run: ./scripts/validate.sh
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout full repository history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Scan for secrets with Gitleaks
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+  deploy:
+    name: Deploy production
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    needs:
+      - validate
+      - secrets
+
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - server1
+
+    concurrency:
+      group: production
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout approved main commit
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Deploy release
+        run: ./scripts/deploy.sh "$GITHUB_SHA"
+
+      - name: Verify deployed version
+        shell: bash
+        run: |
+          expected_version="$(tr -d '\r\n' < site/version.txt)"
+
+          deployed_version="$(curl -fsS \
+            http://127.0.0.1:8080/version.txt)"
+
+          deployed_commit="$(curl -fsS \
+            http://127.0.0.1:8080/commit.txt)"
+
+          test "$deployed_version" = "$expected_version"
+          test "$deployed_commit" = "$GITHUB_SHA"
+
+          echo "Deployment verified successfully."
+          echo "Version: $deployed_version"
+          echo "Commit:  $deployed_commit"
