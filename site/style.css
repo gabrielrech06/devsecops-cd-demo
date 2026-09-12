@@ -8,8 +8,8 @@ body {
     display: grid;
     place-items: center;
     font-family: system-ui, sans-serif;
-    background: #0f172a;
-    color: #e2e8f0;
+    background: #052e16;
+    color: #ecfdf5;
 }
 
 .card {
