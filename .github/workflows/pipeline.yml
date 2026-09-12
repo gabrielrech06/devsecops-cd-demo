@@ -28,6 +28,10 @@ jobs:
     name: Secret scan
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      pull-requests: read
+
     steps:
       - name: Checkout full repository history
         uses: actions/checkout@v7
